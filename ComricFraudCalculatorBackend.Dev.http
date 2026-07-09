@@ -1,0 +1,58 @@
+@ComricFraudCalculatorBackend_HostAddress = http://localhost:5267
+@devToken = dev-token
+
+### List HR events (dev auth — no Entra required)
+GET {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/hr-events
+Authorization: Bearer {{devToken}}
+
+### Submit HR event (Vodacom tenant)
+POST {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/hr-events
+Authorization: Bearer {{devToken}}
+Content-Type: application/json
+
+{
+  "idNumber": "8501015800084",
+  "eventType": "GhostEmployee",
+  "eventDate": "2026-03-15T00:00:00Z",
+  "employerName": "Acme Holdings (Pty) Ltd",
+  "employeeNumber": "EMP-4521",
+  "verificationStatus": "Denied",
+  "notes": "Local SQL dev test"
+}
+
+### Submit MNO event
+POST {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/mno-events
+Authorization: Bearer {{devToken}}
+Content-Type: application/json
+
+{
+  "idNumber": "8501015800084",
+  "msisdn": "0821234567",
+  "eventType": "NewSIMApplication",
+  "eventDate": "2026-03-16T10:30:00Z",
+  "applicationChannel": "InStore",
+  "outletOrDealer": "CellShop Sandton City",
+  "flagReason": "Velocity threshold exceeded"
+}
+
+### Anonymous fraud signals
+GET {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/fraud-signals
+Authorization: Bearer {{devToken}}
+
+### ID check
+POST {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/lookup/id-check
+Authorization: Bearer {{devToken}}
+Content-Type: application/json
+
+{
+  "idNumber": "8501015800084"
+}
+
+### Dashboard stats
+GET {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/dashboard/stats
+Authorization: Bearer {{devToken}}
+
+### MTN tenant (switch tenant via header)
+GET {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/hr-events
+Authorization: Bearer {{devToken}}
+X-Dev-TenantId: 22222222-2222-2222-2222-222222222222

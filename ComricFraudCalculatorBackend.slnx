@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ComricFraudCalculatorBackend.csproj" />
+  <Project Path="ComricFraudCalculatorBackend.IntegrationTests/ComricFraudCalculatorBackend.IntegrationTests.csproj" />
+</Solution>

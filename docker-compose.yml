@@ -1,0 +1,14 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    container_name: comric-fraud-sql
+    environment:
+      ACCEPT_EULA: "1"
+      MSSQL_SA_PASSWORD: "ComricDev!2026"
+    ports:
+      - "1433:1433"
+    volumes:
+      - comric-sql-data:/var/opt/mssql
+
+volumes:
+  comric-sql-data:

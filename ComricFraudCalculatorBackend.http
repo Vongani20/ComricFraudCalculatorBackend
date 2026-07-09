@@ -1,0 +1,64 @@
+@ComricFraudCalculatorBackend_HostAddress = https://localhost:7xxx
+@token = {{auth_token}}
+
+### Exchange client credentials for JWT (Azure Entra ID)
+POST {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/auth/token
+Content-Type: application/json
+
+{
+  "clientId": "YOUR_CLIENT_APP_ID",
+  "clientSecret": "YOUR_CLIENT_SECRET",
+  "scope": "Events.Read Events.Write Signals.Read Audit.Read Dashboard.Read"
+}
+
+### Submit HR fraud event
+POST {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/hr-events
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "idNumber": "8501015800084",
+  "eventType": "GhostEmployee",
+  "eventDate": "2026-03-15T00:00:00Z",
+  "employerName": "Acme Holdings (Pty) Ltd",
+  "employeeNumber": "EMP-4521",
+  "verificationStatus": "Denied",
+  "notes": "Employee does not appear on company payroll."
+}
+
+### Submit MNO fraud event
+POST {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/mno-events
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "idNumber": "8501015800084",
+  "msisdn": "0821234567",
+  "eventType": "NewSIMApplication",
+  "eventDate": "2026-03-16T10:30:00Z",
+  "applicationChannel": "InStore",
+  "outletOrDealer": "CellShop Sandton City",
+  "deviceImei": "356938035643809",
+  "flagReason": "Third SIM application in 7 days. Velocity threshold exceeded."
+}
+
+### Anonymous fraud signals feed
+GET {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/fraud-signals?page=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### ID lookup (hashed before query)
+POST {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/lookup/id-check
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "idNumber": "8501015800084"
+}
+
+### Dashboard stats (tenant-scoped)
+GET {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/dashboard/stats
+Authorization: Bearer {{token}}
+
+### Activity log (tenant-scoped)
+GET {{ComricFraudCalculatorBackend_HostAddress}}/api/v1/activity-log?page=1&pageSize=20
+Authorization: Bearer {{token}}
