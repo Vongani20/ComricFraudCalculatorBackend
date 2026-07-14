@@ -1,3 +1,31 @@
+## Build
 bin/
 obj/
+publish/
+*.user
+*.suo
+
+## IDE
 .vs/
+.idea/
+*.swp
+
+## Secrets / local overrides (never commit real credentials)
+.env
+.env.*
+**/appsettings.*.local.json
+secrets.json
+
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+## Test / coverage
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+## Logs
+*.log

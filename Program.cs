@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using ComricFraudCalculatorBackend.Authentication;
 using ComricFraudCalculatorBackend.Authorization;
+using ComricFraudCalculatorBackend.Configuration;
 using ComricFraudCalculatorBackend.Data;
 using ComricFraudCalculatorBackend.Middleware;
 using ComricFraudCalculatorBackend.Services;
@@ -12,7 +13,22 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddAppKeyVault();
+KeyVaultConfigurationExtensions.EnsureSqlConnectionConfigured(
+    builder.Configuration,
+    builder.Environment.EnvironmentName);
+
+if (builder.Environment.IsProduction()
+    && !builder.Environment.IsEnvironment("Testing")
+    && string.IsNullOrWhiteSpace(builder.Configuration[$"{PlatformOptions.SectionName}:Salt"]))
+{
+    throw new InvalidOperationException(
+        "Platform:Salt is required in Production. Configure App Service setting " +
+        "Platform__Salt with Key Vault secret PlatformSalt.");
+}
+
 builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
+builder.Services.Configure<PlatformOptions>(builder.Configuration.GetSection(PlatformOptions.SectionName));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
@@ -129,8 +145,23 @@ if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
-    await DatabaseSeeder.SeedAsync(db);
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseStartup");
+
+    try
+    {
+        logger.LogInformation("Applying EF Core migrations...");
+        await db.Database.MigrateAsync();
+        logger.LogInformation("Migrations applied successfully.");
+
+        await DatabaseSeeder.SeedAsync(db);
+        logger.LogInformation("Database seed completed.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex,
+            "Database migration or seed failed. Verify ConnectionStrings:DefaultConnection and run 'dotnet ef database update' if needed.");
+        throw;
+    }
 }
 
 if (app.Environment.IsDevelopment())

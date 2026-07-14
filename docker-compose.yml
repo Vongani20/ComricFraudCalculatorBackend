@@ -10,5 +10,21 @@ services:
     volumes:
       - comric-sql-data:/var/opt/mssql
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: comricfraudcalculatorbackend:latest
+    container_name: comric-fraud-api
+    ports:
+      - "5267:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=ComricFraudCalculator;User Id=sa;Password=ComricDev!2026;TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
+      LocalDevelopment__UseDevAuth: "true"
+      LocalDevelopment__EnableRls: "false"
+    depends_on:
+      - sqlserver
+
 volumes:
   comric-sql-data:

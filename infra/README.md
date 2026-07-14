@@ -1,12 +1,13 @@
 # Azure Deployment (Bicep)
 
-Deploys the Fraud Risk Assessment API to Azure App Service with Azure SQL (TDE enabled).
+Deploys the Fraud Risk Assessment API to Azure App Service with Azure SQL (TDE enabled) and **Key Vault** for the SQL connection string (password never stored in App Service settings).
 
 ## Prerequisites
 
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
 - Entra app registration completed ([docs/entra-setup.md](../docs/entra-setup.md))
 - .NET 10 SDK
+- Deploying user needs **Key Vault Administrator** (or Secrets Officer) on the subscription/resource group for the initial deployment
 
 ## Deploy infrastructure
 
@@ -18,7 +19,7 @@ az account set --subscription "<subscription-id>"
 # Create resource group
 az group create --name rg-comric-fraud-dev --location southafricanorth
 
-# Set secrets via environment variables
+# Set secrets via environment variables (used only during Bicep deploy to seed Key Vault)
 $env:SQL_ADMIN_PASSWORD = "<strong-password>"
 $env:ENTRA_TENANT_ID = "<tenant-id>"
 $env:ENTRA_API_CLIENT_ID = "<api-client-id>"
@@ -30,12 +31,27 @@ az deployment group create `
   --parameters infra/main.bicepparam
 ```
 
+## Key Vault connection string
+
+Bicep creates:
+
+| Resource | Purpose |
+|----------|---------|
+| **Key Vault** | Stores secret `ConnectionStrings--DefaultConnection` (full Azure SQL connection string) |
+| **App Service** | Reads connection string via `@Microsoft.KeyVault(VaultName=...;SecretName=...)` |
+| **Managed identity** | Granted **Key Vault Secrets User** on the vault |
+
+The SQL password is **only** in Key Vault — not in `appsettings.json` or plain App Service settings.
+
 ## Post-deployment steps
 
-1. **Apply database schema**
+1. **Apply database schema** (from a machine with Key Vault access):
    ```powershell
-   $conn = az deployment group show -g rg-comric-fraud-dev -n main --query properties.outputs.sqlServerFqdn -o tsv
-   dotnet ef database update --connection "Server=tcp:$conn,1433;Database=ComricFraudCalculator;User ID=sqladmin;Password=<password>;Encrypt=True;"
+   az login
+   $vaultUri = az deployment group show -g rg-comric-fraud-dev -n main --query properties.outputs.keyVaultUri.value -o tsv
+   $env:ASPNETCORE_ENVIRONMENT = "Production"
+   $env:KeyVault__VaultUri = $vaultUri
+   dotnet ef database update
    ```
 
 2. **Apply RLS policies** — run `SQL/RlsPolicies.sql` against the Azure SQL database.
@@ -53,6 +69,17 @@ az deployment group create `
 
 4. **Verify** — `GET https://<app-service-url>/api/v1/fraud-signals` with a valid JWT.
 
+## Run locally against Azure SQL (via Key Vault)
+
+```powershell
+az login
+$env:ASPNETCORE_ENVIRONMENT = "Production"
+$env:KeyVault__VaultUri = "https://<your-keyvault>.vault.azure.net/"
+dotnet run --launch-profile azure
+```
+
+Your Azure AD user needs **Key Vault Secrets User** on the vault.
+
 ## Outputs
 
 | Output | Description |
@@ -60,9 +87,11 @@ az deployment group create `
 | `appServiceUrl` | HTTPS endpoint for the API |
 | `sqlServerFqdn` | Azure SQL server hostname |
 | `sqlDatabaseName` | Database name (`ComricFraudCalculator`) |
+| `keyVaultUri` | Key Vault URI for local `KeyVault__VaultUri` |
+| `keyVaultName` | Key Vault name |
 
 ## Security notes
 
-- Store `SQL_ADMIN_PASSWORD` in Azure Key Vault for production; reference via App Service Key Vault references.
-- Consider Azure SQL **Managed Identity** auth instead of SQL credentials (replace connection string with `Authentication=Active Directory Managed Identity`).
+- Rotate the SQL password by updating the Key Vault secret `ConnectionStrings--DefaultConnection`.
+- Consider Azure SQL **Managed Identity** auth instead of SQL credentials for a future hardening pass.
 - Restrict SQL firewall to App Service outbound IPs in production.

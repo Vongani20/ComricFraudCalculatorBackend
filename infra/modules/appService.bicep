@@ -8,8 +8,14 @@ param appName string
 param planSku string
 
 @secure()
-@description('SQL connection string')
-param sqlConnectionString string
+@description('Key Vault name holding the SQL connection string secret')
+param keyVaultName string
+
+@description('Key Vault secret name for the SQL connection string')
+param connectionStringSecretName string
+
+@description('Key Vault secret name for platform salt')
+param platformSaltSecretName string
 
 @description('Entra tenant ID')
 param entraTenantId string
@@ -41,6 +47,7 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
+    keyVaultReferenceIdentity: 'SystemAssigned'
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
       alwaysOn: true
@@ -53,7 +60,15 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
         }
         {
           name: 'ConnectionStrings__DefaultConnection'
-          value: sqlConnectionString
+          value: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=${connectionStringSecretName})'
+        }
+        {
+          name: 'KeyVault__VaultUri'
+          value: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/'
+        }
+        {
+          name: 'Platform__Salt'
+          value: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=${platformSaltSecretName})'
         }
         {
           name: 'AzureAd__Instance'
