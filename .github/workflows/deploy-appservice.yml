@@ -1,11 +1,11 @@
 # Deploy API + SPA to Azure App Service (ComricWA) on every push to main.
 #
-# One-time setup (run locally):
+# One-time setup (run locally while logged into Azure + GitHub):
 #   .\scripts\setup-github-actions-deploy.ps1
 #
 # Required GitHub secrets:
-#   AZURE_WEBAPP_PUBLISH_PROFILE  — App Service publish profile XML
-#   UI_REPO_TOKEN                 — PAT with repo read (only if ComricFraudCalculatorUI is private)
+#   AZURE_CREDENTIALS  — service principal JSON (from setup script)
+#   UI_REPO_TOKEN      — PAT with repo read (only if ComricFraudCalculatorUI is private)
 
 name: Deploy to App Service
 
@@ -16,6 +16,7 @@ on:
 
 env:
   AZURE_WEBAPP_NAME: ComricWA
+  AZURE_RESOURCE_GROUP: COMRIC_POC_RG
   DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "22"
   AZURE_TENANT_ID: 2f37307c-b165-45ea-a717-caf228c409ab
@@ -31,10 +32,10 @@ jobs:
 
     steps:
       - name: Checkout backend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout UI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: Vongani20/ComricFraudCalculatorUI
           ref: main
@@ -42,12 +43,12 @@ jobs:
           token: ${{ secrets.UI_REPO_TOKEN || github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -81,9 +82,27 @@ jobs:
           test -f ./publish/Microsoft.Data.SqlClient.dll
           test -f ./publish/wwwroot/index.html
 
+      - name: Verify Azure credentials
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        run: |
+          if [ -z "$AZURE_CREDENTIALS" ]; then
+            echo "::error::Missing GitHub secret AZURE_CREDENTIALS. Run locally: .\\scripts\\setup-github-actions-deploy.ps1"
+            exit 1
+          fi
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
           package: ./publish
+
+      - name: Azure Logout
+        if: always()
+        run: az logout
