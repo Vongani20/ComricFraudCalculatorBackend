@@ -2,8 +2,17 @@
 bin/
 obj/
 publish/
+publish-linux/
 *.user
 *.suo
+
+## Local zip / log dumps from deploy troubleshooting
+*.zip
+webapp-logs/
+
+## Built SPA (copied from ComricFraudCalculatorUI on deploy)
+wwwroot/**
+!wwwroot/.gitkeep
 
 ## IDE
 .vs/

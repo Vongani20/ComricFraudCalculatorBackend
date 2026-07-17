@@ -69,7 +69,28 @@ The SQL password is **only** in Key Vault — not in `appsettings.json` or plain
 
 4. **Verify** — `GET https://<app-service-url>/api/v1/fraud-signals` with a valid JWT.
 
-## Run locally against Azure SQL (via Key Vault)
+## Deploy the Docker image (App Service + ACR)
+
+```powershell
+# After: az login
+.\scripts\deploy-image-azure.ps1 `
+  -ResourceGroup "rg-comric-fraud-dev" `
+  -WebAppName "<your-app-service-name>" `
+  -AcrName "<your-acr-name>"
+```
+
+This builds the image, pushes it to Azure Container Registry, and configures the App Service to run that container (`WEBSITES_PORT=8080`).
+
+## Deploy without Docker (zip to Linux App Service)
+
+```powershell
+.\scripts\deploy-appservice-zip.ps1 `
+  -ResourceGroup "rg-comric-fraud-dev" `
+  -WebAppName "<your-app-service-name>"
+```
+
+## Outputs
+
 
 ```powershell
 az login

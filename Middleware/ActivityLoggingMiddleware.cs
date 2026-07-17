@@ -44,10 +44,20 @@ public static class ScopeAuthorization
             ?? string.Empty;
 
         if (scopes.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Any(s => s.Equals(scope, StringComparison.OrdinalIgnoreCase)))
+            .Any(s => ScopeMatches(s, scope)))
             return true;
 
         return user.FindAll("roles")
-            .Any(c => c.Value.Equals(scope, StringComparison.OrdinalIgnoreCase));
+            .Any(c => ScopeMatches(c.Value, scope));
+    }
+
+    private static bool ScopeMatches(string tokenScope, string requiredScope)
+    {
+        if (tokenScope.Equals(requiredScope, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Entra may emit fully qualified scopes: api://{clientId}/Events.Read
+        var suffix = "/" + requiredScope;
+        return tokenScope.EndsWith(suffix, StringComparison.OrdinalIgnoreCase);
     }
 }

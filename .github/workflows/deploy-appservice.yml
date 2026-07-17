@@ -1,0 +1,89 @@
+# Deploy API + SPA to Azure App Service (ComricWA) on every push to main.
+#
+# One-time setup (run locally):
+#   .\scripts\setup-github-actions-deploy.ps1
+#
+# Required GitHub secrets:
+#   AZURE_WEBAPP_PUBLISH_PROFILE  — App Service publish profile XML
+#   UI_REPO_TOKEN                 — PAT with repo read (only if ComricFraudCalculatorUI is private)
+
+name: Deploy to App Service
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: ComricWA
+  DOTNET_VERSION: "10.0.x"
+  NODE_VERSION: "22"
+  AZURE_TENANT_ID: 2f37307c-b165-45ea-a717-caf228c409ab
+  SPA_CLIENT_ID: c448a344-2295-4c0c-bdc9-571a1567afa2
+  API_CLIENT_ID: c448a344-2295-4c0c-bdc9-571a1567afa2
+  ALLOWED_EMAIL_DOMAIN: solugrowth.com
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout backend
+        uses: actions/checkout@v4
+
+      - name: Checkout UI
+        uses: actions/checkout@v4
+        with:
+          repository: Vongani20/ComricFraudCalculatorUI
+          ref: main
+          path: _ui
+          token: ${{ secrets.UI_REPO_TOKEN || github.token }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: _ui/package-lock.json
+
+      - name: Build UI into wwwroot
+        working-directory: _ui
+        env:
+          VITE_USE_DEV_AUTH: "false"
+          VITE_AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
+          VITE_AZURE_CLIENT_ID: ${{ env.SPA_CLIENT_ID }}
+          VITE_AZURE_API_SCOPE: api://${{ env.API_CLIENT_ID }}/Dashboard.Read
+          VITE_AZURE_API_SCOPES: >-
+            api://${{ env.API_CLIENT_ID }}/Events.Read,api://${{ env.API_CLIENT_ID }}/Events.Write,api://${{ env.API_CLIENT_ID }}/Signals.Read,api://${{ env.API_CLIENT_ID }}/Audit.Read,api://${{ env.API_CLIENT_ID }}/Dashboard.Read
+          VITE_ALLOWED_EMAIL_DOMAIN: ${{ env.ALLOWED_EMAIL_DOMAIN }}
+        run: |
+          npm ci
+          npm run build
+          rm -rf ../wwwroot/*
+          mkdir -p ../wwwroot
+          cp -R dist/. ../wwwroot/
+          test -f ../wwwroot/index.html
+
+      - name: Publish API (linux-x64)
+        run: |
+          dotnet publish ComricFraudCalculatorBackend.csproj \
+            -c Release \
+            -r linux-x64 \
+            --self-contained false \
+            -o ./publish
+          test -f ./publish/Microsoft.Data.SqlClient.dll
+          test -f ./publish/wwwroot/index.html
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./publish

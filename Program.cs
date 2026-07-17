@@ -7,6 +7,7 @@ using ComricFraudCalculatorBackend.Middleware;
 using ComricFraudCalculatorBackend.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
@@ -51,7 +52,8 @@ else
     });
 }
 
-var useDevAuth = builder.Environment.IsDevelopment()
+// Dev auth when LocalDevelopment:UseDevAuth=true (local + PoC App Service). Not used in Testing.
+var useDevAuth = !builder.Environment.IsEnvironment("Testing")
     && builder.Configuration.GetValue<bool>("LocalDevelopment:UseDevAuth");
 
 if (useDevAuth)
@@ -61,8 +63,27 @@ if (useDevAuth)
 }
 else if (!builder.Environment.IsEnvironment("Testing"))
 {
+    var azureAdSection = builder.Configuration.GetSection(AzureAdOptions.SectionName);
+    var apiClientId = builder.Configuration[$"{AzureAdOptions.SectionName}:ClientId"];
+    var apiAudience = builder.Configuration[$"{AzureAdOptions.SectionName}:Audience"];
+
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection(AzureAdOptions.SectionName));
+        .AddMicrosoftIdentityWebApi(azureAdSection);
+
+    builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+    {
+        var audiences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(apiAudience))
+            audiences.Add(apiAudience);
+        if (!string.IsNullOrWhiteSpace(apiClientId))
+        {
+            audiences.Add(apiClientId);
+            audiences.Add($"api://{apiClientId}");
+        }
+
+        if (audiences.Count > 0)
+            options.TokenValidationParameters.ValidAudiences = audiences.ToList();
+    });
 }
 
 builder.Services.AddAuthorization(options =>
@@ -175,8 +196,28 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+// App Service terminates TLS; honor X-Forwarded-Proto so redirects/links work.
+var forwardedHeaders = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedHeaders.KnownIPNetworks.Clear();
+forwardedHeaders.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeaders);
+
+if (!app.Environment.IsProduction())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthentication();
+
+if (!useDevAuth && !app.Environment.IsEnvironment("Testing"))
+    app.UseMiddleware<OrganizationEmailMiddleware>();
+
 app.UseAuthorization();
 
 if (app.Configuration.GetValue<bool>("LocalDevelopment:EnableRls"))
@@ -184,6 +225,9 @@ if (app.Configuration.GetValue<bool>("LocalDevelopment:EnableRls"))
 
 app.UseMiddleware<ActivityLoggingMiddleware>();
 app.MapControllers();
+
+// SPA deep-links (React Router) → index.html; API routes stay on controllers.
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
