@@ -4,8 +4,8 @@
 #   .\scripts\setup-github-actions-deploy.ps1
 #
 # Required GitHub secrets:
-#   AZURE_CREDENTIALS  — service principal JSON (from setup script)
-#   UI_REPO_TOKEN      — PAT with repo read (only if ComricFraudCalculatorUI is private)
+#   AZURE_WEBAPP_PUBLISH_PROFILE  — App Service publish profile XML
+#   UI_REPO_TOKEN                 — PAT with repo read (only if UI repo is private)
 
 name: Deploy to App Service
 
@@ -16,7 +16,6 @@ on:
 
 env:
   AZURE_WEBAPP_NAME: ComricWA
-  AZURE_RESOURCE_GROUP: COMRIC_POC_RG
   DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "22"
   AZURE_TENANT_ID: 2f37307c-b165-45ea-a717-caf228c409ab
@@ -82,27 +81,18 @@ jobs:
           test -f ./publish/Microsoft.Data.SqlClient.dll
           test -f ./publish/wwwroot/index.html
 
-      - name: Verify Azure credentials
+      - name: Verify publish profile secret
         env:
-          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+          PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         run: |
-          if [ -z "$AZURE_CREDENTIALS" ]; then
-            echo "::error::Missing GitHub secret AZURE_CREDENTIALS. Run locally: .\\scripts\\setup-github-actions-deploy.ps1"
+          if [ -z "$PUBLISH_PROFILE" ]; then
+            echo "::error::Missing GitHub secret AZURE_WEBAPP_PUBLISH_PROFILE. Run locally: .\\scripts\\setup-github-actions-deploy.ps1"
             exit 1
           fi
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: ./publish
-
-      - name: Azure Logout
-        if: always()
-        run: az logout
