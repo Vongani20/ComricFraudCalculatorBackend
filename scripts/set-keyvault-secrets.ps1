@@ -9,7 +9,7 @@
 param(
     [string]$VaultUri = "https://cmckv.vault.azure.net/",
     [string]$SqlServer = "sql-comric-poc.database.windows.net",
-    [string]$Database = "ComricFraudCalculator",
+    [string]$Database = "COMRIC_DB",
     [string]$SqlUser = "comricsa",
     [Parameter(Mandatory = $true)]
     [string]$SqlPassword,

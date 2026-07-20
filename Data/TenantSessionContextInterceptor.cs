@@ -1,4 +1,5 @@
 using System.Data.Common;
+using ComricFraudCalculatorBackend.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -25,25 +26,7 @@ public class TenantSessionContextInterceptor(IHttpContextAccessor httpContextAcc
         base.ConnectionOpened(connection, eventData);
     }
 
-    private Guid? GetTenantId()
-    {
-        var user = httpContextAccessor.HttpContext?.User;
-        if (user?.Identity?.IsAuthenticated != true)
-            return null;
-
-        var tenantClaim = user.FindFirst("tenant_id")
-            ?? user.FindFirst("extension_TenantId")
-            ?? user.FindFirst("tid");
-
-        if (tenantClaim is not null && Guid.TryParse(tenantClaim.Value, out var tenantId))
-            return tenantId;
-
-        var appId = user.FindFirst("azp")?.Value ?? user.FindFirst("appid")?.Value;
-        if (appId is not null && Guid.TryParse(appId, out var appTenantId))
-            return appTenantId;
-
-        return null;
-    }
+    private Guid? GetTenantId() => TenantContextResolver.Resolve(httpContextAccessor.HttpContext);
 
     private async Task SetTenantContextAsync(DbConnection connection, CancellationToken cancellationToken)
     {

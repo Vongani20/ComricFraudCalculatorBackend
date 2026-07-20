@@ -33,7 +33,7 @@ module sql 'modules/sql.bicep' = {
   params: {
     location: location
     serverName: '${appName}-sql-${uniqueString(resourceGroup().id)}'
-    databaseName: 'ComricFraudCalculator'
+    databaseName: 'COMRIC_DB'
     adminLogin: sqlAdminLogin
     adminPassword: sqlAdminPassword
   }

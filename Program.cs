@@ -213,6 +213,8 @@ if (!app.Environment.IsProduction())
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.UseMiddleware<ExceptionMappingMiddleware>();
+
 app.UseAuthentication();
 
 if (!useDevAuth && !app.Environment.IsEnvironment("Testing"))
